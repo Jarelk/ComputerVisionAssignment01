@@ -237,6 +237,14 @@ public:
 
 		// Check if everything went correctly
 		bool ok = cv::checkRange(cameraMatrix) && cv::checkRange(distCoeffs);
+
+		std::cout << "Camera Matrix:\t";
+		std::cout << cameraMatrix;
+		std::cout << "\n";
+
+		std::cout << "Distortion Coefficients:\t";
+		std::cout << distCoeffs;
+		std::cout << "\n";
 	}
 
 	// Calculate the object points of the chessboard
