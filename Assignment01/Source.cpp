@@ -103,7 +103,7 @@ public:
 		cv::moveWindow("Stream", 0, 45);
 
 		// Time for a stream
-		std::thread t1(&Calibrator::DisplayCamera, std::ref(webcam));
+		t1 = std::thread(&Calibrator::DisplayCamera, this, std::ref(webcam));
 
 	}
 
@@ -229,7 +229,8 @@ public:
 		cv::Mat rvecs, tvecs;
 
 		// Calibration time!
-		double rms = cv::calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs, rvecs, tvecs, newObjPoints, CALIBFLAG);
+		double rms;
+		rms = cv::calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs, rvecs, tvecs, newObjPoints, CALIBFLAG);
 
 		// Tell us the overall RMS error
 		std::cout << std::format("Calibration overall RMS re-projection error:\t{}\n", rms);
@@ -254,7 +255,7 @@ public:
 	/* This function loops, showing the webcam feed.
 	* Every so often, depending on the delay variable, it copies a new image for use in calibration.
 	* */
-	void DisplayCamera(cv::VideoCapture webcam) {
+	void DisplayCamera(cv::VideoCapture& webcam) {
 		while (true) {
 			cv::Mat stream; 
 			webcam >> stream;
@@ -278,6 +279,7 @@ private:
 	std::mutex img_mutex;
 	clock_t prevTimestamp = 0;
 	cv::Size imageSize;
+	std::thread t1;
 };
 
 
@@ -292,6 +294,8 @@ int main()
 
 	calibrator.GatherData();
 	std::cout << "Data gathered succesfully. Maybe. Hopefully.\n";
+
+	calibrator.CalibrateCamera();
 
 	//Click to exit
 	cv::waitKey(0);
