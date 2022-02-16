@@ -5,6 +5,7 @@
 #include <string>
 #include <ctime>
 #include <cstdio>
+#include <utility>
 #include <vector>
 #include <thread>
 
@@ -23,21 +24,23 @@ using namespace std;
 
 /* A bunch of constants
 */
+//todo: maybe not make them global and move them into main?
+const string outputFile = "calib.xml";
 // Path to the images folder
 const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/");
 // Size of the chessboard, measured from the inner corners
 const Size BOARDSIZE = Size(9, 6);
 // Square size in mm
-constexpr int SQUARESIZE = 22;
+constexpr int SQUARESIZE = 24;
 // Width of the chess grid in mm
-constexpr int GRID_WIDTH = 198;
+constexpr int GRID_WIDTH = 226; //SQUARESIZE * 9;
 
 // Amount of succesful corner checks we want before we calibrate
 constexpr int MAXDETECTIONS = 15;
 // Webcam delay between snapshots for corner checking
 constexpr int DELAY = 100;
 // The aspect ratio of your camera
-const float ASPECT_RATIO = 4 / 3;
+constexpr float ASPECT_RATIO = 4 / 3;
 
 // Flags for checking for chessboard corners, finetuning can be done here
 constexpr int CHESSFLAGS = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
@@ -55,11 +58,24 @@ public:
 
 	/* Constructor needs directory path
 	*/
-	ImageReader(filesystem::path path)
+	ImageReader(const filesystem::path& path)
 	{
 		// Read the directory and globs the found jpg's in a list
 		utils::fs::glob(path.string(), "*.jpg", imageList, false);
 	}
+};
+
+void Save_calibration(const Mat& cameraMatrix, const Mat& distCoeffs, double& rms, Mat& rvecs, Mat& tvecs)
+{
+
+	FileStorage fs(outputFile, FileStorage::WRITE);
+	//write calibration data:
+	fs << "camera_matrix" << cameraMatrix;
+	fs << "distortion_coefficients" << distCoeffs;
+	fs << "avg_reprojection_error" << rms;
+	//extrinsics params ?
+	fs << "rvecs" << rvecs;
+	fs << "tvecs" << tvecs;
 };
 
 /* TODO: Remove duplicate code for data gathering
@@ -82,7 +98,7 @@ public:
 	*/
 	Calibrator(filesystem::path path) : Calibrator()
 	{
-		images = ImageReader(path);
+		images = ImageReader(std::move(path));
 		capture_mode = IMAGEFOLDER;
 	}
 
@@ -92,7 +108,7 @@ public:
 	*/
 	Calibrator(int cameraID) : Calibrator()
 	{
-		VideoCapture webcam(cameraID);
+		VideoCapture webcam(0);
 
 		// If the webcam doesn't open something might be wrong
 		if (!webcam.isOpened()) {
@@ -105,13 +121,14 @@ public:
 		moveWindow("Stream", 0, 45);
 
 		// Time for a stream
-		t1 = thread(&Calibrator::DisplayCamera, this, ref(webcam));
+		//t1 = thread(&Calibrator::DisplayCamera, this, ref(webcam)); //WEBCAM ERROR HERE
 
 	}
 
 	/* Gathers data by iterating over webcam images or by reading images from a folder */
-	void GatherData()
+	void GatherData(int& no_squares)
 	{
+		
 		// Iterates every image in the given directory and gathers the chess corner points 
 		if (capture_mode == IMAGEFOLDER)
 		{
@@ -121,7 +138,7 @@ public:
 				imageSize = img.size();
 
 				// The photos I took with my phone are 4000 x 3000, which makes finding the corners reeaallly slow, so we resize it
-				resize(img, img, Size(1600, 900));
+				//resize(img, img, Size(1600, 900));
 
 				// Grayscale each image, color adds nothing
 				Mat gray;
@@ -147,7 +164,8 @@ public:
 				}
 				else
 				{
-					cout << std::format("Chesboard corner search unsuccesful for image: {}\n", image_path);
+					cout << std::format("Chessboard corner search unsuccessful for image: {}\n", image_path);
+					no_squares++;
 				}
 
 			}
@@ -169,7 +187,7 @@ public:
 
 					// Find the corners
 					vector<Point2f> corners;
-					bool ret = findChessboardCorners(img, Size{ 9, 6 }, corners, CHESSFLAGS);
+					bool ret = findChessboardCorners(img, BOARDSIZE, corners, CHESSFLAGS);
 
 					// If we found corners:
 					if (ret) 
@@ -187,7 +205,7 @@ public:
 						pointMatrix.push_back(corners);
 
 						// Draw and show the corners for funsies
-						drawChessboardCorners(img, Size{ 9, 6 }, corners, ret);
+						drawChessboardCorners(img, BOARDSIZE, corners, ret);
 						imshow("First CV Assignment", img);
 
 						// I remember from working with OpenCV in python that this is a real big neccessary line whenever you use imshow
@@ -213,34 +231,33 @@ public:
 	/* Calibrate using the corner data gathered with GatherData()
 	*/
 	//bool CalibrateCamera()
-	void CalibrateCamera()
+	void CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs)
 	{
 		vector<vector<Point3f>> objectPoints(1);
 		vector<Point3f> newObjPoints;
 
 		CalculateCornerPositions(BOARDSIZE, SQUARESIZE, objectPoints[0]);
-
 		// Do some math-y math for use case where our piece of paper is an imperfect planar target
 		objectPoints[0][BOARDSIZE.width - 1].x = objectPoints[0][0].x + GRID_WIDTH;
 		newObjPoints = objectPoints[0];
 		objectPoints.resize(pointMatrix.size(), objectPoints[0]);
 
 		// Ready some parameters
-		const int iFixedPoint = BOARDSIZE.width -1;
-		Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
-		Mat distCoeffs = Mat::zeros(8, 1, CV_64F);
-		Mat rvecs, tvecs;
+		const int iFixedPoint = BOARDSIZE.width - 1;
+		cameraMatrix = Mat::eye(3, 3, CV_64F);
+		distCoeffs = Mat::zeros(8, 1, CV_64F);
 
 		// Calibration time!
-		double rms = calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs, rvecs, tvecs, newObjPoints, CALIBFLAG);
+		//iFixedPoint = -1;
+		 rms = calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs,
+		                               rvecs, tvecs, newObjPoints, CALIB_USE_LU); //CALIB_USE_LU faster, less acc
 
 		// Tell us the overall RMS error
-		cout << std::format("Calibration overall RMS re-projection error:\t{}\n", rms);
-
+		cout << "Calibration overall RMS re-projection error:\t" << rms << "\n";
 		// Check if everything went correctly
 		bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
-
-		cout << "Camera Matrix:\t" << cameraMatrix << "\nDistortion Coefficients:\t" << distCoeffs << "\n";
+		
+		cout << "Camera Matrix:\n" << cameraMatrix << "\nDistortion Coefficients:\n" << distCoeffs << "\n";
 	}
 
 	// Calculate the object points of the chessboard
@@ -263,8 +280,9 @@ public:
 		while (true) {
 			Mat stream; 
 			webcam >> stream;
-			imshow("Stream", stream);
+			imshow("Stream", stream);//EXCEPTION THROWN WHEN TRYING TO LOAD WEBCAM
 			waitKey(1);
+
 			if (clock() - prevTimestamp > DELAY && !imageReady) {
 				prevTimestamp = clock();
 				img_mutex.lock();
@@ -283,24 +301,34 @@ private:
 	mutex img_mutex;
 	clock_t prevTimestamp = 0;
 	Size imageSize;
-	thread t1;
+	//thread t1;
 };
 
 
 /* Note: The squares on the paper seem to be 22mm wide and long */
-int main()
+int main(int argc, char* argv[])
 {
+
+	//vars
+	Mat cameraMatrix, distCoeffs, rvecs, tvecs; 
+	double rms = 0.0;
+
+	int no_squares = 0;
 	// Using images
 	Calibrator calibrator = Calibrator{IMAGES_PATH};
 
 	// Using a webcam
 	//Calibrator calibrator = Calibrator(0);
 
-	calibrator.GatherData();
+	calibrator.GatherData(no_squares);
 	cout << "Data gathered successfully. Maybe. Hopefully.\n";
+	cout << "number of images omited:" << no_squares << "\n";
 
-	calibrator.CalibrateCamera();
+	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs);
+	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
 	//Click to exit
 	waitKey(0);
 }
+
+
