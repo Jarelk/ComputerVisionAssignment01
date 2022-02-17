@@ -27,7 +27,7 @@ using namespace std;
 //todo: maybe not make them global and move them into main?
 const string outputFile = "calib.xml";
 // Path to the images folder
-const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/");
+const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/02/");
 // Size of the chessboard, measured from the inner corners
 const Size BOARDSIZE = Size(9, 6);
 // Square size in mm
@@ -46,7 +46,7 @@ constexpr float ASPECT_RATIO = 4 / 3;
 constexpr int CHESSFLAGS = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
 // Flags for the calibration step. I have no idea what most of these do.
 // TODO: Figure out how to improve stuff by changing some flags around.
-constexpr int CALIBFLAG = CALIB_FIX_K4 | CALIB_FIX_K5 | CALIB_FIX_PRINCIPAL_POINT | CALIB_FIX_ASPECT_RATIO | CALIB_ZERO_TANGENT_DIST;
+constexpr int CALIBFLAG = 0;
 
 class ImageReader
 {
@@ -258,6 +258,25 @@ public:
 		bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
 		
 		cout << "Camera Matrix:\n" << cameraMatrix << "\nDistortion Coefficients:\n" << distCoeffs << "\n";
+
+		cout << "Showing undistorted image.\n";
+		Mat rview, map1, map2;
+		initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
+			getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), 
+			imageSize, CV_16SC2, map1, map2);
+		namedWindow("Undistorted", WINDOW_AUTOSIZE);
+		moveWindow("Undistorted", 0, 45);
+		for (const String image_path : images.imageList) 
+		{
+			img = imread(image_path);
+			remap(img, rview, map1, map2, INTER_LINEAR);
+
+			imshow("Undistorted", rview);
+
+			// Wait for keypress
+			waitKey(0);
+		}
+
 	}
 
 	// Calculate the object points of the chessboard
