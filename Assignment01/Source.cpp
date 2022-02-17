@@ -140,16 +140,16 @@ public:
 				// The photos I took with my phone are 4000 x 3000, which makes finding the corners reeaallly slow, so we resize it
 				//resize(img, img, Size(1600, 900));
 
-				// Grayscale each image, color adds nothing
-				Mat gray;
-				cvtColor(img, gray, COLOR_BGR2GRAY);
-
 				// Find the corners
 				vector<Point2f> corners;
-				bool ret = findChessboardCorners(gray, BOARDSIZE, corners, CHESSFLAGS);
+				bool ret = findChessboardCorners(img, BOARDSIZE, corners, CHESSFLAGS);
 				if (ret)
 				{
 					cout << std::format("Chessboard corners found on image: {}\n", image_path);
+
+					//Grayscale image for subpixel
+					Mat gray;
+					cvtColor(img, gray, COLOR_BGR2GRAY);
 
 					// Improve accuracy on corners with some subpixel magic
 					cornerSubPix(gray, corners, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.0001));
@@ -182,9 +182,6 @@ public:
 					img_mutex.lock();
 					imageSize = img.size();
 
-					// Grayscale the image
-					cvtColor(img, img, COLOR_BGR2GRAY);
-
 					// Find the corners
 					vector<Point2f> corners;
 					bool ret = findChessboardCorners(img, BOARDSIZE, corners, CHESSFLAGS);
@@ -197,6 +194,10 @@ public:
 						
 						//+1 on the iterator!
 						iterator++;
+
+						//Grayscale image for subpixel
+						Mat gray;
+						cvtColor(img, gray, COLOR_BGR2GRAY);
 
 						// Improve accuracy on corners with some subpixel magic
 						cornerSubPix(img, corners, Size(11, 11), Size(-1, -1), TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 30, 0.0001));
@@ -259,24 +260,29 @@ public:
 		
 		cout << "Camera Matrix:\n" << cameraMatrix << "\nDistortion Coefficients:\n" << distCoeffs << "\n";
 
-		cout << "Showing undistorted image.\n";
-		Mat rview, map1, map2;
-		initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
-			getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), 
-			imageSize, CV_16SC2, map1, map2);
-		namedWindow("Undistorted", WINDOW_AUTOSIZE);
-		moveWindow("Undistorted", 0, 45);
-		for (const String image_path : images.imageList) 
-		{
-			img = imread(image_path);
-			remap(img, rview, map1, map2, INTER_LINEAR);
+	}
 
-			imshow("Undistorted", rview);
+	void ShowUndistortedImages(Mat cameraMatrix, Mat distCoeffs)
+	{
+		if (capture_mode == IMAGEFOLDER) {
+			cout << "Showing undistorted image.\n";
+			Mat rview, map1, map2;
+			initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
+				getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0),
+				imageSize, CV_16SC2, map1, map2);
+			namedWindow("Undistorted", WINDOW_AUTOSIZE);
+			moveWindow("Undistorted", 0, 45);
+			for (const String image_path : images.imageList)
+			{
+				img = imread(image_path);
+				remap(img, rview, map1, map2, INTER_LINEAR);
 
-			// Wait for keypress
-			waitKey(0);
+				imshow("Undistorted", rview);
+
+				// Wait for keypress
+				waitKey(0);
+			}
 		}
-
 	}
 
 	// Calculate the object points of the chessboard
@@ -345,6 +351,8 @@ int main(int argc, char* argv[])
 
 	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
+
+	calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs);
 
 	//Click to exit
 	waitKey(0);
