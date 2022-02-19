@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 #include <thread>
+#include <math.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/utility.hpp>
@@ -33,13 +34,15 @@ using namespace std;
 //todo: maybe not make them global and move them into main?
 const string outputFile = "calib.xml";
 // Path to the images folder
-const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/02/");
+const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/01/");
 // Size of the chessboard, measured from the inner corners
 const Size BOARDSIZE = Size(9, 6);
 // Square size in mm
+//constexpr int SQUARESIZE = 22;
 constexpr int SQUARESIZE = 24;
 // Width of the chess grid in mm
-constexpr int GRID_WIDTH = 226; //SQUARESIZE * 9;
+//constexpr int GRID_WIDTH = 176; //SQUARESIZE * 9;
+constexpr int GRID_WIDTH = 226;
 
 // Amount of succesful corner checks we want before we calibrate
 constexpr int MAXDETECTIONS = 15;
@@ -339,9 +342,14 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
                       vector<Point3f>& out, vector<Point2d>& point2D,
                     vector<Point3d> point3D)
 {
+	//VideoCapture webcam("http://192.168.1.144:4747/mjpegfeed");
 	VideoCapture webcam(0);
+	if (!webcam.isOpened()) {
+		cerr << "Webcam not opened!";
+		throw runtime_error("Problem encountered while opening webcam stream.");
+	}
 	Mat stream;
-	const string x = "x"; const string y = "y"; const string z = "z";
+	const string x = "x"; const string y = "y"; const string z = "-z";
 
 	//todo move to its own or something?
 	Calibrator::CalculateCornerPositions(out);
@@ -357,17 +365,29 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 	point3D.push_back(Point3d(cub, 0, -cub));	//verix g 
 	point3D.push_back(Point3d(cub, cub, -cub));	//vertix h 
 
-
+	clock_t t;
+	vector<Point3d> balls;
+	balls.push_back(Point3d(100, 100, -50));
+	balls.push_back(Point3d(200, 75, -50));
 		while (true)
 		{
+			t = clock();
+			float time = ((float)t / 500.0f);
+			balls[0].z = - sinf(fmod(time, (float)CV_PI)) * SQUARESIZE * 2;
+			balls[1].z = - sinf(fmod(time + 5, (float)CV_PI)) * SQUARESIZE * 3;
 			webcam >> stream;
 			if (bool has_corners = findChessboardCorners(stream, BOARDSIZE, corners))
 			{
 				//pose stimation. Orientation 3d in 2d img
 				solvePnP(out, corners, cameraMatrix, distCoeffs, rvec, tvec);
 
+
 				//Projects 3D points to an image plane. 
 				projectPoints(point3D, rvec, tvec, cameraMatrix, distCoeffs, point2D);
+
+				//Project ball?
+				vector<Point2d> ballimg;
+				projectPoints(balls, rvec, tvec, cameraMatrix, distCoeffs, ballimg);
 
 				//---------draw axis---------//todo: move out
 				arrowedLine(stream, corners[0], point2D[0], BLUE,3);
@@ -394,6 +414,10 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				line(stream, point2D[4], point2D[3], YELLOW, 2);	//f-e
 				line(stream, point2D[3], point2D[5], YELLOW, 2);	//e-g
 				line(stream, point2D[4], point2D[6], YELLOW, 2);	//f-h
+
+				//draw ball??
+				circle(stream, ballimg[0], 20, RED, FILLED);
+				circle(stream, ballimg[1], 20, BLUE, FILLED);
 			}
 			
 			imshow("Assignment1", stream);
