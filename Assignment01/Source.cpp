@@ -367,19 +367,33 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 
 	clock_t t;
 	vector<Point3d> balls;
-	balls.push_back(Point3d(100, 100, -50));
-	balls.push_back(Point3d(200, 75, -50));
+	vector<float> ZBuffer;
+	balls.push_back(Point3d(100, 75, 0));
+	balls.push_back(Point3d(120, 75, 0));
+	ZBuffer.push_back(0.0);
+	ZBuffer.push_back(0.0);
 		while (true)
 		{
 			t = clock();
 			float time = ((float)t / 500.0f);
 			balls[0].z = - sinf(fmod(time, (float)CV_PI)) * SQUARESIZE * 2;
 			balls[1].z = - sinf(fmod(time + 5, (float)CV_PI)) * SQUARESIZE * 3;
+
 			webcam >> stream;
 			if (bool has_corners = findChessboardCorners(stream, BOARDSIZE, corners))
 			{
 				//pose stimation. Orientation 3d in 2d img
 				solvePnP(out, corners, cameraMatrix, distCoeffs, rvec, tvec);
+
+				// Find Cameraposition
+				Mat rMat;
+				Rodrigues(rvec, rMat);
+				Mat camMat = rMat.t() * Mat(tvec);
+				Point3d camPos = Point3d(-camMat.at<double>(Point(0, 0)), -camMat.at<double>(Point(1, 0)), -camMat.at<double>(Point(2, 0)));
+
+				// Fill the "Z Buffer"
+				ZBuffer[0] = norm(camPos - balls[0]);
+				ZBuffer[1] = norm(camPos- balls[1]);
 
 
 				//Projects 3D points to an image plane. 
@@ -415,9 +429,20 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				line(stream, point2D[3], point2D[5], YELLOW, 2);	//e-g
 				line(stream, point2D[4], point2D[6], YELLOW, 2);	//f-h
 
-				//draw ball??
-				circle(stream, ballimg[0], 20, RED, FILLED);
-				circle(stream, ballimg[1], 20, BLUE, FILLED);
+				// If red is further than blue, draw red first
+				if (ZBuffer[0] > ZBuffer[1]) {
+					//cout << "Drawing red, then blue\n";
+					circle(stream, ballimg[0], 20, RED, FILLED);
+					circle(stream, ballimg[1], 20, BLUE, FILLED);
+				}
+				// If red is not further than blue, draw blue first
+				else {
+					//cout << "Drawing blue, then red\n";
+					circle(stream, ballimg[1], 20, BLUE, FILLED);
+					circle(stream, ballimg[0], 20, RED, FILLED);
+				}
+				
+				
 			}
 			
 			imshow("Assignment1", stream);
