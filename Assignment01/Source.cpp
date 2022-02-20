@@ -167,7 +167,7 @@ public:
 					pointMatrix.push_back(corners);
 
 					// Draw and show the corners for funsies
-					drawChessboardCorners(img, BOARDSIZE, corners, ret);
+					//drawChessboardCorners(img, BOARDSIZE, corners, ret);
 					
 					//imshow("First CV Assignment", img);
 
@@ -274,21 +274,21 @@ public:
 			if (perViewErrors.at(i) > rms) {
 				cout << std::format("Removing image {} with rms {} \n", i, perViewErrors.at(i));
 				pointMatrix.at(i) = vector<Point2f>(0);
-				objectPoints.at(i) = vector<Point3f>(0);
 			}
 		}
 		auto it = remove_if(pointMatrix.begin(), pointMatrix.end(), [](vector<Point2f> vec) {return vec == vector<Point2f>(0); });
 		pointMatrix.erase(it, pointMatrix.end());
 
-		objectPoints = vector<vector<Point3f>>(1);
-		CalculateCornerPositions(objectPoints[0]);
-		objectPoints[0][BOARDSIZE.width - 1].x = objectPoints[0][0].x + GRID_WIDTH;
-		newObjPoints = objectPoints[0];
-		objectPoints.resize(pointMatrix.size(), objectPoints[0]);
+		vector<vector<Point3f>> objectPoints2(1);
+		vector<Point3f> newObjPoints2;
+		CalculateCornerPositions(objectPoints2[0]);
+		objectPoints2[0][BOARDSIZE.width - 1].x = objectPoints2[0][0].x + GRID_WIDTH;
+		newObjPoints2 = objectPoints2[0];
+		objectPoints2.resize(pointMatrix.size(), objectPoints2[0]);
 
 		// Calibration time! Again!
-		rms = calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs,
-			rvecs, tvecs, newObjPoints, std1, std2, std3, perViewErrors, CALIB_USE_LU); //CALIB_USE_LU faster, less acc
+		rms = calibrateCameraRO(objectPoints2, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs,
+			rvecs, tvecs, newObjPoints2, std1, std2, std3, perViewErrors, CALIB_USE_LU); //CALIB_USE_LU faster, less acc
 
 		// Tell us the overall RMS error
 		cout << "Calibration overall RMS re-projection error:\t" << rms << "\n";
@@ -433,10 +433,11 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				//Project ball?
 				vector<Point2d> ballimg;
 				projectPoints(balls, rvec, tvec, cameraMatrix, distCoeffs, ballimg);
-
+				
 				//---------draw axis---------//todo: move out
 				arrowedLine(stream, corners[0], point2D[0], BLUE,3);
 				putText(stream, x, Point(point2D[0].x + 20, point2D[0].y), FONT_HERSHEY_SIMPLEX, 1, BLUE, 2);
+				
 				//y
 				arrowedLine(stream, corners[0], point2D[1], GREEN, 3);
 				putText(stream, y, Point(point2D[1].x - 10, point2D[1].y - 10), FONT_HERSHEY_SIMPLEX, 1, GREEN, 2);
@@ -445,8 +446,9 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				arrowedLine(stream, corners[0], point2D[2], RED, 3);
 				putText(stream, z, Point(point2D[2].x - 10, point2D[2].y - 10), FONT_HERSHEY_SIMPLEX, 1, RED, 2);
 
-				drawFrameAxes(stream, cameraMatrix, distCoeffs, rvec, t, 30, 3); //draw axis
-
+				
+				//drawFrameAxes(stream, cameraMatrix, distCoeffs, rvec, t, 30, 3); //draw axis
+				
 				//-----------draw cube-----------////TODO: DO THIS BETTER THANKS
 							//letter belong to vertices. See reference here https://i.ibb.co/cvBScHW/cube-ref.png
 				line(stream, corners[0], point2D[3], YELLOW, 2);	//a-e
@@ -461,7 +463,7 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				line(stream, point2D[4], point2D[3], YELLOW, 2);	//f-e
 				line(stream, point2D[3], point2D[5], YELLOW, 2);	//e-g
 				line(stream, point2D[4], point2D[6], YELLOW, 2);	//f-h
-
+				
 				// If red is further than blue, draw red first
 				if (ZBuffer[0] > ZBuffer[1]) {
 					//cout << "Drawing red, then blue\n";
@@ -491,10 +493,7 @@ int main(int argc, char* argv[])
 	cameraMatrix = Mat::eye(3, 3, CV_64F);
 	distCoeffs = Mat::zeros(8, 1, CV_64F);
 
-	vector<vector<Point3f>> objectPoints(1);
-	vector<Point3f> newObjPoints; //i think this can stay in
 	ImageReader img;
-	vector<String> final_img_list= img.imageList;
 
 	double rms = 0.0;
 	vector<Point2f> corners;
@@ -514,7 +513,6 @@ int main(int argc, char* argv[])
 	
 	cout << "Data gathered successfully. Maybe. Hopefully.\n";
 	cout << "number of images omited:" << no_squares << "\n";
-	//img_discarder(calibrator.images.imageList, rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
 	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, no_squares, corners);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
