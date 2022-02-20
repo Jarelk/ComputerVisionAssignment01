@@ -34,7 +34,7 @@ using namespace std;
 //todo: maybe not make them global and move them into main?
 const string outputFile = "calib.xml";
 // Path to the images folder
-const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/01/");
+const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/02/");
 // Size of the chessboard, measured from the inner corners
 const Size BOARDSIZE = Size(9, 6);
 // Square size in mm
@@ -135,14 +135,15 @@ public:
 	}
 
 	/* Gathers data by iterating over webcam images or by reading images from a folder */
-	void GatherData(int& no_squares, vector<Point2f>& corners, vector<String>& final_img_list)
+	void GatherData(int& no_squares, vector<Point2f>& corners)
 	{
 		
 		// Iterates every image in the given directory and gathers the chess corner points 
 		if (capture_mode == IMAGEFOLDER)
 		{
-			//for (const String image_path : images.imageList)
-			for (const String image_path : final_img_list) //with best imgs only
+			
+			for (const String image_path : images.imageList)
+			//for (const String image_path : final_img_list) //with best imgs only
 			{
 				img = imread(image_path);
 				imageSize = img.size();
@@ -171,7 +172,7 @@ public:
 					imshow("First CV Assignment", img);
 
 					// Wait for keypress
-					waitKey(0);
+					//waitKey(0);
 				}
 				else
 				{
@@ -243,12 +244,14 @@ public:
 	/* Calibrate using the corner data gathered with GatherData()
 	*/
 	
-	bool CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs,
+	void CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs,
 	                     vector<vector<Point3f>>& objectPoints,
 	                     vector<Point3f>& newObjPoints)
 	{
 		/*vector<vector<Point3f>> objectPoints(1); 
 		vector<Point3f> newObjPoints;*/
+
+
 
 		CalculateCornerPositions(objectPoints[0]);
 
@@ -331,7 +334,7 @@ public:
 		}
 	}
 
-private:
+public:
 	mode capture_mode;
 	Mat img;
 	ImageReader images;
@@ -461,11 +464,11 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 }
 
 //discard images that does not contribute to a better calibration (calculated with rms)
-void img_discarder(vector<string>& final_img_list, double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, vector<vector<Point3f>>& objectPoints, vector<Point3f>& newObjPoints)
+void img_discarder(vector<string> imageList, double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, vector<vector<Point3f>>& objectPoints, vector<Point3f>& newObjPoints)
 {
+	cout << "IMAGE DISCARD\n\n\n";
 	ImageReader img;
-	vector<string> aux_list = img.imageList; //auxiliar list of images
-	final_img_list = img.imageList;
+	vector<string> aux_list = imageList; //auxiliar list of images
 	Calibrator calibrator;
 	int num_imgs= img.imageList.size();
 	//vector<double> totalAvgErrList;
@@ -487,10 +490,11 @@ void img_discarder(vector<string>& final_img_list, double& rms, Mat& cameraMatri
 	{
 		if(rms_list[i] > avg_rms) //if without pic i the rms is better (lower)
 		{
-			final_img_list.erase(final_img_list.begin() + i); //bye pic
+			img.imageList.erase(img.imageList.begin() + i); //bye pic
 			cout << "Deleting img " << i << "\n";
 		}
 	}
+	
 }
 
 /* Note: The squares on the paper seem to be 22mm wide and long */
@@ -503,8 +507,8 @@ int main(int argc, char* argv[])
 
 	vector<vector<Point3f>> objectPoints(1);
 	vector<Point3f> newObjPoints; //i think this can stay in
-
-	vector<String> final_img_list;
+	ImageReader img;
+	vector<String> final_img_list= img.imageList;
 
 	double rms = 0.0;
 	vector<Point2f> corners;
@@ -514,20 +518,22 @@ int main(int argc, char* argv[])
 
 	int no_squares = 0;
 	// Using images
+	
 	Calibrator calibrator = Calibrator{IMAGES_PATH};
-
+	
 	// Using a webcam
 	//Calibrator calibrator = Calibrator(0);
-	img_discarder(final_img_list, rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
-	calibrator.GatherData(no_squares, corners, final_img_list);
+	
+	calibrator.GatherData(no_squares, corners);
+	
 	cout << "Data gathered successfully. Maybe. Hopefully.\n";
 	cout << "number of images omited:" << no_squares << "\n";
-
+	img_discarder(calibrator.images.imageList, rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
 	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
 	//calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs); todo: ANA UNCOMMENT
-	draw_on_webcam(cameraMatrix, tvecs, rvecs,distCoeffs,corners, out, point2D, point3D);
+	//draw_on_webcam(cameraMatrix, tvecs, rvecs,distCoeffs,corners, out, point2D, point3D);
 
 	//Click to exit
 	waitKey(0);
