@@ -135,13 +135,14 @@ public:
 	}
 
 	/* Gathers data by iterating over webcam images or by reading images from a folder */
-	void GatherData(int& no_squares, vector<Point2f>& corners)
+	void GatherData(int& no_squares, vector<Point2f>& corners, vector<String>& final_img_list)
 	{
 		
 		// Iterates every image in the given directory and gathers the chess corner points 
 		if (capture_mode == IMAGEFOLDER)
 		{
-			for (const String image_path : images.imageList)
+			//for (const String image_path : images.imageList)
+			for (const String image_path : final_img_list) //with best imgs only
 			{
 				img = imread(image_path);
 				imageSize = img.size();
@@ -464,54 +465,32 @@ void img_discarder(vector<string>& final_img_list, double& rms, Mat& cameraMatri
 {
 	ImageReader img;
 	vector<string> aux_list = img.imageList; //auxiliar list of images
-	vector<string> img_list = img.imageList;
+	final_img_list = img.imageList;
 	Calibrator calibrator;
-
-	vector<double> totalAvgErrList;
-	double aux_error=0.0; //aux var to calculate avg error of the list of imgs
-
-	for (int i=0; i < aux_list.size() +1; i++)
+	int num_imgs= img.imageList.size();
+	//vector<double> totalAvgErrList;
+	vector<double> rms_list;
+	double sum_rms=0.0; //aux var to calculate avg error of the list of imgs
+	
+	for (int i=0; i < img.imageList.size(); i++)
 	{
 		objectPoints.clear();
-		img_list = aux_list;
-		cout << "calibrating img " << i << "\n";
-
-		if(i < aux_list.size()) //remove i
+		newObjPoints.clear();//empty all calibration stuff. needed?
+		aux_list = img.imageList;
+		aux_list.erase(aux_list.begin() + i); //delete only image i
+		calibrator.CalibrateCamera(rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
+		sum_rms += rms;
+		rms_list[i] = rms;
+	}
+	double avg_rms = sum_rms / rms_list.size();
+	for(int i= rms_list.size()-1; i>-1; i--)
+	{
+		if(rms_list[i] > avg_rms) //if without pic i the rms is better (lower)
 		{
-			img_list.erase(img_list.begin() + i); 
-		}else
-		{
-			for (double j : totalAvgErrList)
-			{
-				aux_error += j;
-
-			}
-
-			for(int k= totalAvgErrList.size() - 1; k == 0; k--)
-			{
-				if (totalAvgErrList[k]<aux_error)
-				{
-					img_list.erase(img_list.begin() + i);
-				}
-			}
-
-		}
-		while(true)
-		{
-			if()//all images have been processed
-			{
-				calibrator.CalibrateCamera(rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
-
-				if(i!=aux_list.size())//still not last elemnt, push rms
-				{
-					totalAvgErrList.push_back(rms);
-				}
-				break;
-			}
-				
+			final_img_list.erase(final_img_list.begin() + i); //bye pic
+			cout << "Deleting img " << i << "\n";
 		}
 	}
-
 }
 
 /* Note: The squares on the paper seem to be 22mm wide and long */
@@ -539,11 +518,10 @@ int main(int argc, char* argv[])
 
 	// Using a webcam
 	//Calibrator calibrator = Calibrator(0);
-
-	calibrator.GatherData(no_squares, corners);
+	img_discarder(final_img_list, rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
+	calibrator.GatherData(no_squares, corners, final_img_list);
 	cout << "Data gathered successfully. Maybe. Hopefully.\n";
 	cout << "number of images omited:" << no_squares << "\n";
-	
 
 	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
