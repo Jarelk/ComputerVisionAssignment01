@@ -57,7 +57,7 @@ constexpr int CHESSFLAGS = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
 // TODO: Figure out how to improve stuff by changing some flags around.
 constexpr int CALIBFLAG = 0;
 
-class ImageReader
+class ImageReader 
 {
 public:
 	// Just use the filesystem iterator to find the images
@@ -170,7 +170,7 @@ public:
 					imshow("First CV Assignment", img);
 
 					// Wait for keypress
-					//waitKey(0);
+					waitKey(0);
 				}
 				else
 				{
@@ -241,11 +241,13 @@ public:
 
 	/* Calibrate using the corner data gathered with GatherData()
 	*/
-	//bool CalibrateCamera()
-	void CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs) 
+	
+	bool CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs,
+	                     vector<vector<Point3f>>& objectPoints,
+	                     vector<Point3f>& newObjPoints)
 	{
-		vector<vector<Point3f>> objectPoints(1); 
-		vector<Point3f> newObjPoints;
+		/*vector<vector<Point3f>> objectPoints(1); 
+		vector<Point3f> newObjPoints;*/
 
 		CalculateCornerPositions(objectPoints[0]);
 
@@ -338,16 +340,20 @@ private:
 	Size imageSize;
 	//thread t1;
 };
+
+//todo: divide in functions
 void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& distCoeffs, vector<Point2f>& corners,
                       vector<Point3f>& out, vector<Point2d>& point2D,
                     vector<Point3d> point3D)
 {
 	//VideoCapture webcam("http://192.168.1.144:4747/mjpegfeed");
 	VideoCapture webcam(0);
+
 	if (!webcam.isOpened()) {
 		cerr << "Webcam not opened!";
 		throw runtime_error("Problem encountered while opening webcam stream.");
 	}
+
 	Mat stream;
 	const string x = "x"; const string y = "y"; const string z = "-z";
 
@@ -414,6 +420,8 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				arrowedLine(stream, corners[0], point2D[2], RED, 3);
 				putText(stream, z, Point(point2D[2].x - 10, point2D[2].y - 10), FONT_HERSHEY_SIMPLEX, 1, RED, 2);
 
+				drawFrameAxes(stream, cameraMatrix, distCoeffs, rvec, t, 30, 3); //draw axis
+
 				//-----------draw cube-----------////TODO: DO THIS BETTER THANKS
 							//letter belong to vertices. See reference here https://i.ibb.co/cvBScHW/cube-ref.png
 				line(stream, corners[0], point2D[3], YELLOW, 2);	//a-e
@@ -451,6 +459,61 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 
 }
 
+//discard images that does not contribute to a better calibration (calculated with rms)
+void img_discarder(vector<string>& final_img_list, double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, vector<vector<Point3f>>& objectPoints, vector<Point3f>& newObjPoints)
+{
+	ImageReader img;
+	vector<string> aux_list = img.imageList; //auxiliar list of images
+	vector<string> img_list = img.imageList;
+	Calibrator calibrator;
+
+	vector<double> totalAvgErrList;
+	double aux_error=0.0; //aux var to calculate avg error of the list of imgs
+
+	for (int i=0; i < aux_list.size() +1; i++)
+	{
+		objectPoints.clear();
+		img_list = aux_list;
+		cout << "calibrating img " << i << "\n";
+
+		if(i < aux_list.size()) //remove i
+		{
+			img_list.erase(img_list.begin() + i); 
+		}else
+		{
+			for (double j : totalAvgErrList)
+			{
+				aux_error += j;
+
+			}
+
+			for(int k= totalAvgErrList.size() - 1; k == 0; k--)
+			{
+				if (totalAvgErrList[k]<aux_error)
+				{
+					img_list.erase(img_list.begin() + i);
+				}
+			}
+
+		}
+		while(true)
+		{
+			if()//all images have been processed
+			{
+				calibrator.CalibrateCamera(rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
+
+				if(i!=aux_list.size())//still not last elemnt, push rms
+				{
+					totalAvgErrList.push_back(rms);
+				}
+				break;
+			}
+				
+		}
+	}
+
+}
+
 /* Note: The squares on the paper seem to be 22mm wide and long */
 int main(int argc, char* argv[])
 {
@@ -458,6 +521,11 @@ int main(int argc, char* argv[])
 	Mat cameraMatrix, distCoeffs, rvecs, tvecs;
 	cameraMatrix = Mat::eye(3, 3, CV_64F);
 	distCoeffs = Mat::zeros(8, 1, CV_64F);
+
+	vector<vector<Point3f>> objectPoints(1);
+	vector<Point3f> newObjPoints; //i think this can stay in
+
+	vector<String> final_img_list;
 
 	double rms = 0.0;
 	vector<Point2f> corners;
@@ -477,7 +545,7 @@ int main(int argc, char* argv[])
 	cout << "number of images omited:" << no_squares << "\n";
 	
 
-	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs);
+	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
 	//calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs); todo: ANA UNCOMMENT
