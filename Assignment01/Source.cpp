@@ -420,7 +420,7 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 				Mat rMat;
 				Rodrigues(rvec, rMat);
 				Mat camMat = rMat.t() * Mat(tvec);
-				Point3d camPos = Point3d(-camMat.at<double>(Point(0, 0)), -camMat.at<double>(Point(1, 0)), -camMat.at<double>(Point(2, 0)));
+				Point3d camPos = Point3d(-camMat.at<int>(0), -camMat.at<int>(1), -camMat.at<int>(2));
 
 				// Fill the "Z Buffer"
 				ZBuffer[0] = norm(camPos - balls[0]);
