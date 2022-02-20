@@ -97,8 +97,8 @@ public:
 
 	Calibrator() 
 	{
-		namedWindow("First CV Assignment", WINDOW_AUTOSIZE);
-		moveWindow("First CV Assignment", 0, 45);
+		//namedWindow("First CV Assignment", WINDOW_AUTOSIZE);
+		//moveWindow("First CV Assignment", 0, 45);
 	}
 
 	/* Constructor for when you're using an image path
@@ -169,7 +169,7 @@ public:
 					// Draw and show the corners for funsies
 					drawChessboardCorners(img, BOARDSIZE, corners, ret);
 					
-					imshow("First CV Assignment", img);
+					//imshow("First CV Assignment", img);
 
 					// Wait for keypress
 					//waitKey(0);
@@ -238,35 +238,65 @@ public:
 			}
 		}
 		// Destroy the window
-		destroyWindow("First CV Assignment");
+		//destroyWindow("First CV Assignment");
 	}
 
 	/* Calibrate using the corner data gathered with GatherData()
 	*/
 	
-	void CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs,
-	                     vector<vector<Point3f>>& objectPoints,
-	                     vector<Point3f>& newObjPoints)
+	void CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, int& no_squares, vector<Point2f>& corners)
 	{
-		/*vector<vector<Point3f>> objectPoints(1); 
-		vector<Point3f> newObjPoints;*/
+		vector<vector<Point3f>> objectPoints(1); 
+		vector<Point3f> newObjPoints;
 
-
+		vector<string> aux_list = images.imageList;
 
 		CalculateCornerPositions(objectPoints[0]);
-
-		// Do some math-y math for use case where our piece of paper is an imperfect planar target
+		vector<double> rms_list;
+		double sum_rms = 0.0; //aux var to calculate avg error of the list of imgs
+		//Do some math - y math for use case where our piece of paper is an imperfect planar target
 		objectPoints[0][BOARDSIZE.width - 1].x = objectPoints[0][0].x + GRID_WIDTH;
 		newObjPoints = objectPoints[0];
 		objectPoints.resize(pointMatrix.size(), objectPoints[0]);
 
 		// Ready some parameters
 		const int iFixedPoint = BOARDSIZE.width - 1;
-		
 
+		for (int i = 0; i < aux_list.size(); i++)
+		{
+			images.imageList = aux_list;
+			images.imageList.erase(images.imageList.begin() + i); //delete only image i
+
+			GatherData(no_squares, corners);
+			objectPoints[0][BOARDSIZE.width - 1].x = objectPoints[0][0].x + GRID_WIDTH;
+			newObjPoints = objectPoints[0];
+			objectPoints.resize(pointMatrix.size(), objectPoints[0]);
+			
+			
+			rms = calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs,
+				rvecs, tvecs, newObjPoints, CALIB_USE_LU); //CALIB_USE_LU faster, less acc
+			sum_rms += rms;
+			//rms_list[i] = rms;//out of range
+			rms_list.emplace_back(rms);
+		}
+		double avg_rms = sum_rms / rms_list.size();
+		images.imageList = aux_list;
+		for (int i = rms_list.size() - 1; i > -1; i--)
+		//for (int i = 0; i<rms_list.size(); i++)
+		{
+			if (rms_list[i] < avg_rms) //if without pic i the rms is better (lower than avg)
+			{
+				cout << "Deleting img " << images.imageList[i] << "\n";
+				images.imageList.erase(images.imageList.begin() + i); //bye pic
+			}
+		}
+		
+		GatherData(no_squares, corners);
+		objectPoints[0][BOARDSIZE.width - 1].x = objectPoints[0][0].x + GRID_WIDTH;
+		newObjPoints = objectPoints[0];
+		objectPoints.resize(pointMatrix.size(), objectPoints[0]);
 		// Calibration time!
-		//iFixedPoint = -1;
-		 rms = calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs,
+		rms = calibrateCameraRO(objectPoints, pointMatrix, imageSize, iFixedPoint, cameraMatrix, distCoeffs,
 		                               rvecs, tvecs, newObjPoints, CALIB_USE_LU); //CALIB_USE_LU faster, less acc
 
 		// Tell us the overall RMS error
@@ -464,38 +494,38 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 }
 
 //discard images that does not contribute to a better calibration (calculated with rms)
-void img_discarder(vector<string> imageList, double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, vector<vector<Point3f>>& objectPoints, vector<Point3f>& newObjPoints)
-{
-	cout << "IMAGE DISCARD\n\n\n";
-	ImageReader img;
-	vector<string> aux_list = imageList; //auxiliar list of images
-	Calibrator calibrator;
-	int num_imgs= img.imageList.size();
-	//vector<double> totalAvgErrList;
-	vector<double> rms_list;
-	double sum_rms=0.0; //aux var to calculate avg error of the list of imgs
-	
-	for (int i=0; i < img.imageList.size(); i++)
-	{
-		objectPoints.clear();
-		newObjPoints.clear();//empty all calibration stuff. needed?
-		aux_list = img.imageList;
-		aux_list.erase(aux_list.begin() + i); //delete only image i
-		calibrator.CalibrateCamera(rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
-		sum_rms += rms;
-		rms_list[i] = rms;
-	}
-	double avg_rms = sum_rms / rms_list.size();
-	for(int i= rms_list.size()-1; i>-1; i--)
-	{
-		if(rms_list[i] > avg_rms) //if without pic i the rms is better (lower)
-		{
-			img.imageList.erase(img.imageList.begin() + i); //bye pic
-			cout << "Deleting img " << i << "\n";
-		}
-	}
-	
-}
+//void img_discarder(vector<string> imageList, double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, vector<vector<Point3f>>& objectPoints, vector<Point3f>& newObjPoints)
+//{
+//	cout << "IMAGE DISCARD\n\n\n";
+//	ImageReader img;
+//	vector<string> aux_list = imageList; //auxiliar list of images
+//	Calibrator calibrator;
+//	int num_imgs= img.imageList.size();
+//	//vector<double> totalAvgErrList;
+//	vector<double> rms_list;
+//	double sum_rms=0.0; //aux var to calculate avg error of the list of imgs
+//	
+//	for (int i=0; i < img.imageList.size(); i++)
+//	{
+//		objectPoints.clear();
+//		newObjPoints.clear();//empty all calibration stuff. needed?
+//		aux_list = img.imageList;
+//		aux_list.erase(aux_list.begin() + i); //delete only image i
+//		calibrator.CalibrateCamera(rms, cameraMatrix, distCoeffs, rvecs, tvecs);
+//		sum_rms += rms;
+//		rms_list[i] = rms;
+//	}
+//	double avg_rms = sum_rms / rms_list.size();
+//	for(int i= rms_list.size()-1; i>-1; i--)
+//	{
+//		if(rms_list[i] > avg_rms) //if without pic i the rms is better (lower)
+//		{
+//			img.imageList.erase(img.imageList.begin() + i); //bye pic
+//			cout << "Deleting img " << i << "\n";
+//		}
+//	}
+//	
+//}
 
 /* Note: The squares on the paper seem to be 22mm wide and long */
 int main(int argc, char* argv[])
@@ -528,8 +558,8 @@ int main(int argc, char* argv[])
 	
 	cout << "Data gathered successfully. Maybe. Hopefully.\n";
 	cout << "number of images omited:" << no_squares << "\n";
-	img_discarder(calibrator.images.imageList, rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
-	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
+	//img_discarder(calibrator.images.imageList, rms, cameraMatrix, distCoeffs, rvecs, tvecs, objectPoints, newObjPoints);
+	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, no_squares, corners);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
 	//calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs); todo: ANA UNCOMMENT
