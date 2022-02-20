@@ -31,7 +31,6 @@ using namespace std;
 
 /* A bunch of constants
 */
-//todo: maybe not make them global and move them into main?
 const string outputFile = "calib.xml";
 // Path to the images folder
 const filesystem::path IMAGES_PATH = filesystem::absolute("../imgs/02/");
@@ -54,7 +53,6 @@ constexpr float ASPECT_RATIO = 4 / 3;
 // Flags for checking for chessboard corners, finetuning can be done here
 constexpr int CHESSFLAGS = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
 // Flags for the calibration step. I have no idea what most of these do.
-// TODO: Figure out how to improve stuff by changing some flags around.
 constexpr int CALIBFLAG = 0;
 
 class ImageReader 
@@ -250,12 +248,9 @@ public:
 		vector<Point3f> newObjPoints;
 		vector<double> perViewErrors;
 
-		//vector<string> aux_list = images.imageList;
-
 		CalculateCornerPositions(objectPoints[0]);
-		vector<double> rms_list;
-		double sum_rms = 0.0; //aux var to calculate avg error of the list of imgs
-		//Do some math - y math for use case where our piece of paper is an imperfect planar target
+
+		//Do some math-y math for use case where our piece of paper is an imperfect planar target
 		objectPoints[0][BOARDSIZE.width - 1].x = objectPoints[0][0].x + GRID_WIDTH;
 		newObjPoints = objectPoints[0];
 		objectPoints.resize(pointMatrix.size(), objectPoints[0]);
@@ -279,6 +274,7 @@ public:
 		auto it = remove_if(pointMatrix.begin(), pointMatrix.end(), [](vector<Point2f> vec) {return vec == vector<Point2f>(0); });
 		pointMatrix.erase(it, pointMatrix.end());
 
+		// Repeat all the earlier math, with the new image subset
 		vector<vector<Point3f>> objectPoints2(1);
 		vector<Point3f> newObjPoints2;
 		CalculateCornerPositions(objectPoints2[0]);
@@ -298,7 +294,12 @@ public:
 		cout << "Camera Matrix:\n" << cameraMatrix << "\nDistortion Coefficients:\n" << distCoeffs << "\n";
 
 	}
-
+	
+	/* Shows the undistorted image in a window
+	* PARAMS:
+	*	Mat cameraMatrix:	the intrinsic camera parameters
+	*	Mat distCoeffs:		the distortion coefficients
+	*/
 	void ShowUndistortedImages(Mat& cameraMatrix, Mat& distCoeffs)
 	{
 		if (capture_mode == IMAGEFOLDER) {
@@ -322,7 +323,10 @@ public:
 		}
 	}
 
-	// Calculate the object points of the chessboard THIS IS NOT USED (:
+	/* Calculate the object points of the chessboard
+	* PARAMS:
+	*	vector<Point3f>& out:	rvalue of the vector to fill with the corner data
+	*/
 	static void CalculateCornerPositions( vector<Point3f>& out) 
 	{
 		for (int i = 0; i < BOARDSIZE.height; i++)
@@ -337,6 +341,7 @@ public:
 
 	/* This function loops, showing the webcam feed.
 	* Every so often, depending on the delay variable, it copies a new image for use in calibration.
+	* CURRENTLY NOT WORKING
 	* */
 	void DisplayCamera(VideoCapture& webcam) {
 		while (true) {
@@ -366,10 +371,12 @@ public:
 	//thread t1;
 };
 
-//todo: divide in functions
-void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& distCoeffs, vector<Point2f>& corners,
-                      vector<Point3f>& out, vector<Point2d>& point2D,
-                    vector<Point3d> point3D)
+/* Draws in a live loop on a chessboard using a webcam stream
+* PARAMS:
+*	Mat cameraMatrix: the intrinsic camera parameters found
+*	Mat distCoeffs: the distortion coefficients found
+*/
+void draw_on_webcam(const Mat& cameraMatrix, const Mat& distCoeffs)
 {
 	//VideoCapture webcam("http://192.168.1.144:4747/mjpegfeed");
 	VideoCapture webcam(0);
@@ -382,9 +389,12 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 	Mat stream;
 	const string x = "x"; const string y = "y"; const string z = "-z";
 
-	//todo move to its own or something?
+	vector<Point3f> out; // objectPoints
 	Calibrator::CalculateCornerPositions(out);
 	constexpr int cub= SQUARESIZE * 2;
+
+	vector<Point2d> point2D;//to draw
+	vector<Point3d> point3D; //to draw
 
 	//end points for axis lines
 	point3D.push_back(Point3d(90.0, 0, 0));	//end point x
@@ -399,6 +409,8 @@ void draw_on_webcam(const Mat& cameraMatrix, Mat& tvec, Mat& rvec, const Mat& di
 	clock_t t;
 	vector<Point3d> balls;
 	vector<float> ZBuffer;
+	Mat rvec, tvec;
+	vector<Point2f> corners;
 	balls.push_back(Point3d(100, 75, 0));
 	balls.push_back(Point3d(120, 75, 0));
 	ZBuffer.push_back(0.0);
@@ -497,9 +509,6 @@ int main(int argc, char* argv[])
 
 	double rms = 0.0;
 	vector<Point2f> corners;
-	vector<Point2d> point2D;//to draw
-	vector<Point3d> point3D; //to draw
-	vector<Point3f> out; // objectPoints
 
 	int no_squares = 0;
 	// Using images
@@ -517,7 +526,7 @@ int main(int argc, char* argv[])
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
 	//calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs); todo: ANA UNCOMMENT
-	draw_on_webcam(cameraMatrix, tvecs, rvecs,distCoeffs,corners, out, point2D, point3D);
+	draw_on_webcam(cameraMatrix, distCoeffs);
 
 	//Click to exit
 	waitKey(0);
