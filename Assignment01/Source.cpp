@@ -55,7 +55,7 @@ constexpr int CHESSFLAGS = CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE;
 // Flags for the calibration step. I have no idea what most of these do.
 constexpr int CALIBFLAG = 0;
 
-class ImageReader 
+class ImageReader
 {
 public:
 	// Just use the filesystem iterator to find the images
@@ -80,20 +80,18 @@ void Save_calibration(const Mat& cameraMatrix, const Mat& distCoeffs, double& rm
 	fs << "camera_matrix" << cameraMatrix;
 	fs << "distortion_coefficients" << distCoeffs;
 	fs << "avg_reprojection_error" << rms;
-	//extrinsics params ?
+	//extrinsics params 
 	fs << "rvecs" << rvecs;
 	fs << "tvecs" << tvecs;
 };
 
-/* TODO: Remove duplicate code for data gathering
-*/
 class Calibrator
 {
 public:
-	enum mode {WEBCAM, IMAGEFOLDER};
+	enum mode { WEBCAM, IMAGEFOLDER };
 	vector<vector<Point2f>> pointMatrix;
 
-	Calibrator() 
+	Calibrator()
 	{
 		//namedWindow("First CV Assignment", WINDOW_AUTOSIZE);
 		//moveWindow("First CV Assignment", 0, 45);
@@ -135,13 +133,13 @@ public:
 	/* Gathers data by iterating over webcam images or by reading images from a folder */
 	void GatherData(int& no_squares, vector<Point2f>& corners)
 	{
-		
+
 		// Iterates every image in the given directory and gathers the chess corner points 
 		if (capture_mode == IMAGEFOLDER)
 		{
-			
+
 			for (const String image_path : images.imageList)
-			//for (const String image_path : final_img_list) //with best imgs only
+				//for (const String image_path : final_img_list) //with best imgs only
 			{
 				img = imread(image_path);
 				imageSize = img.size();
@@ -149,7 +147,7 @@ public:
 				// The photos I took with my phone are 4000 x 3000, which makes finding the corners reeaallly slow, so we resize it
 				//resize(img, img, Size(1600, 900));
 
-				// Find the corners //todo: use this for online phase too
+				// Find the corners //
 				//vector<Point2f> corners; ->moved to int
 				bool ret = findChessboardCorners(img, BOARDSIZE, corners, CHESSFLAGS);
 				if (ret)
@@ -166,7 +164,7 @@ public:
 
 					// Draw and show the corners for funsies
 					//drawChessboardCorners(img, BOARDSIZE, corners, ret);
-					
+
 					//imshow("First CV Assignment", img);
 
 					// Wait for keypress
@@ -181,7 +179,7 @@ public:
 			}
 		}
 		// Takes webcam snapshots and finds the corners using that
-		if (capture_mode == WEBCAM) 
+		if (capture_mode == WEBCAM)
 		{
 			// The amount of succesful corner detections we want to calibrate
 			int iterator = 0;
@@ -197,11 +195,11 @@ public:
 					bool ret = findChessboardCorners(img, BOARDSIZE, corners, CHESSFLAGS);
 
 					// If we found corners:
-					if (ret) 
+					if (ret)
 					{
 						// Let the audience know we succesfully found corners
 						cout << "Corners found on snapshot.\n";
-						
+
 						//+1 on the iterator!
 						iterator++;
 
@@ -222,7 +220,7 @@ public:
 						// I remember from working with OpenCV in python that this is a real big neccessary line whenever you use imshow
 						waitKey(1);
 					}
-					else 
+					else
 					{
 						cout << "Corner search unsuccessful on snapshot.\n";
 					}
@@ -241,7 +239,7 @@ public:
 
 	/* Calibrate using the corner data gathered with GatherData()
 	*/
-	
+
 	void CalibrateCamera(double& rms, Mat& cameraMatrix, Mat& distCoeffs, Mat& rvecs, Mat& tvecs, int& no_squares, vector<Point2f>& corners)
 	{
 		vector<vector<Point3f>> objectPoints(1);
@@ -264,7 +262,7 @@ public:
 			rvecs, tvecs, newObjPoints, std1, std2, std3, perViewErrors, CALIB_USE_LU); //CALIB_USE_LU faster, less acc
 
 		cout << std::format("Average rms: {}\n", rms);
-		for (int i = 0; i < pointMatrix.size(); i++) 
+		for (int i = 0; i < pointMatrix.size(); i++)
 		{
 			if (perViewErrors.at(i) > rms) {
 				cout << std::format("Removing image {} with rms {} \n", i, perViewErrors.at(i));
@@ -290,11 +288,11 @@ public:
 		cout << "Calibration overall RMS re-projection error:\t" << rms << "\n";
 		// Check if everything went correctly
 		bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
-		
+
 		cout << "Camera Matrix:\n" << cameraMatrix << "\nDistortion Coefficients:\n" << distCoeffs << "\n";
 
 	}
-	
+
 	/* Shows the undistorted image in a window
 	* PARAMS:
 	*	Mat cameraMatrix:	the intrinsic camera parameters
@@ -327,7 +325,7 @@ public:
 	* PARAMS:
 	*	vector<Point3f>& out:	rvalue of the vector to fill with the corner data
 	*/
-	static void CalculateCornerPositions( vector<Point3f>& out) 
+	static void CalculateCornerPositions(vector<Point3f>& out)
 	{
 		for (int i = 0; i < BOARDSIZE.height; i++)
 		{
@@ -345,9 +343,9 @@ public:
 	* */
 	void DisplayCamera(VideoCapture& webcam) {
 		while (true) {
-			Mat stream; 
+			Mat stream;
 			webcam >> stream;
-			imshow("Stream", stream);//EXCEPTION THROWN WHEN TRYING TO LOAD WEBCAM
+			imshow("Stream", stream);
 			waitKey(1);
 
 			if (clock() - prevTimestamp > DELAY && !imageReady) {
@@ -387,24 +385,23 @@ void draw_on_webcam(const Mat& cameraMatrix, const Mat& distCoeffs)
 	}
 
 	Mat stream;
-	const string x = "x"; const string y = "y"; const string z = "-z";
 
 	vector<Point3f> out; // objectPoints
 	Calibrator::CalculateCornerPositions(out);
-	constexpr int cub= SQUARESIZE * 2;
+	constexpr int cub = SQUARESIZE * 2;
 
 	vector<Point2d> point2D;//to draw
 	vector<Point3d> point3D; //to draw
 
 	//end points for axis lines
-	point3D.push_back(Point3d(90.0, 0, 0));	//end point x
-	point3D.push_back(Point3d(0, 90.0, 0));	//endpoint y
-	point3D.push_back(Point3d(0, 0, -90.0));//end point z
+	point3D.push_back(Point3d(90.0, 0, 0));
+	point3D.push_back(Point3d(0, 90.0, 0));
+	point3D.push_back(Point3d(0, 0, -90.0));
 	//vertices points for cube drawing
-	point3D.push_back(Point3d(0, 0, -cub));	//vertix e
-	point3D.push_back(Point3d(0, cub, -cub));	//vertix f
-	point3D.push_back(Point3d(cub, 0, -cub));	//verix g 
-	point3D.push_back(Point3d(cub, cub, -cub));	//vertix h 
+	point3D.push_back(Point3d(0, 0, -cub));
+	point3D.push_back(Point3d(0, cub, -cub));
+	point3D.push_back(Point3d(cub, 0, -cub));
+	point3D.push_back(Point3d(cub, cub, -cub));
 
 	clock_t t;
 	vector<Point3d> balls;
@@ -415,86 +412,79 @@ void draw_on_webcam(const Mat& cameraMatrix, const Mat& distCoeffs)
 	balls.push_back(Point3d(120, 75, 0));
 	ZBuffer.push_back(0.0);
 	ZBuffer.push_back(0.0);
-		while (true)
+	while (true)
+	{
+		t = clock();
+		float time = ((float)t / 500.0f);
+		balls[0].z = -sinf(fmod(time, (float)CV_PI)) * SQUARESIZE * 2;
+		balls[1].z = -sinf(fmod(time + 5, (float)CV_PI)) * SQUARESIZE * 3;
+
+		webcam >> stream;
+		if (bool has_corners = findChessboardCorners(stream, BOARDSIZE, corners))
 		{
-			t = clock();
-			float time = ((float)t / 500.0f);
-			balls[0].z = - sinf(fmod(time, (float)CV_PI)) * SQUARESIZE * 2;
-			balls[1].z = - sinf(fmod(time + 5, (float)CV_PI)) * SQUARESIZE * 3;
+			//pose stimation. Orientation 3d in 2d img
+			solvePnP(out, corners, cameraMatrix, distCoeffs, rvec, tvec);
 
-			webcam >> stream;
-			if (bool has_corners = findChessboardCorners(stream, BOARDSIZE, corners))
-			{
-				//pose stimation. Orientation 3d in 2d img
-				solvePnP(out, corners, cameraMatrix, distCoeffs, rvec, tvec);
+			// Find Cameraposition
+			Mat rMat;
+			Rodrigues(rvec, rMat);
+			Mat camMat = -1 * rMat.t() * Mat(tvec);
+			Point3d camPos = Point3d(camMat);
 
-				// Find Cameraposition
-				Mat rMat;
-				Rodrigues(rvec, rMat);
-				Mat camMat = -1 * rMat.t() * Mat(tvec);
-				Point3d camPos = Point3d(camMat);
+			// Fill the "Z Buffer"
+			ZBuffer[0] = norm(camPos - balls[0]);
+			ZBuffer[1] = norm(camPos - balls[1]);
 
-				// Fill the "Z Buffer"
-				ZBuffer[0] = norm(camPos - balls[0]);
-				ZBuffer[1] = norm(camPos- balls[1]);
+			//Projects 3D points to an image plane. 
+			projectPoints(point3D, rvec, tvec, cameraMatrix, distCoeffs, point2D);
 
+			//Project ball?
+			vector<Point2d> ballimg;
+			projectPoints(balls, rvec, tvec, cameraMatrix, distCoeffs, ballimg);
 
-				//Projects 3D points to an image plane. 
-				projectPoints(point3D, rvec, tvec, cameraMatrix, distCoeffs, point2D);
+			//---------draw axis---------//
+			arrowedLine(stream, corners[0], point2D[0], BLUE, 3);
+			putText(stream, "x", Point(point2D[0].x + 20, point2D[0].y), FONT_HERSHEY_SIMPLEX, 1, BLUE, 2);
+			arrowedLine(stream, corners[0], point2D[1], GREEN, 3);
+			putText(stream, "y", Point(point2D[1].x - 10, point2D[1].y - 10), FONT_HERSHEY_SIMPLEX, 1, GREEN, 2);
+			arrowedLine(stream, corners[0], point2D[2], RED, 3);
+			putText(stream, "z", Point(point2D[2].x - 10, point2D[2].y - 10), FONT_HERSHEY_SIMPLEX, 1, RED, 2);
 
-				//Project ball?
-				vector<Point2d> ballimg;
-				projectPoints(balls, rvec, tvec, cameraMatrix, distCoeffs, ballimg);
-				
-				//---------draw axis---------//todo: move out
-				arrowedLine(stream, corners[0], point2D[0], BLUE,3);
-				putText(stream, x, Point(point2D[0].x + 20, point2D[0].y), FONT_HERSHEY_SIMPLEX, 1, BLUE, 2);
-				
-				//y
-				arrowedLine(stream, corners[0], point2D[1], GREEN, 3);
-				putText(stream, y, Point(point2D[1].x - 10, point2D[1].y - 10), FONT_HERSHEY_SIMPLEX, 1, GREEN, 2);
-				//z
-				// arrowedLine(image, start_point, end_point, color, thickness)
-				arrowedLine(stream, corners[0], point2D[2], RED, 3);
-				putText(stream, z, Point(point2D[2].x - 10, point2D[2].y - 10), FONT_HERSHEY_SIMPLEX, 1, RED, 2);
+			//drawFrameAxes(stream, cameraMatrix, distCoeffs, rvec, t, 30, 3); //draw axis
 
-				
-				//drawFrameAxes(stream, cameraMatrix, distCoeffs, rvec, t, 30, 3); //draw axis
-				
-				//-----------draw cube-----------////TODO: DO THIS BETTER THANKS
-							//letter belong to vertices. See reference here https://i.ibb.co/cvBScHW/cube-ref.png
-				line(stream, corners[0], point2D[3], YELLOW, 2);	//a-e
-				line(stream, point2D[5], corners[2], YELLOW, 2);	//g-d
-				line(stream, point2D[4], corners[18], YELLOW, 2);	//f-b
-				line(stream, point2D[6], corners[20], YELLOW, 2);	//h-c
-				line(stream, corners[20], corners[2], YELLOW, 2);	//c-d
-				line(stream, corners[0], corners[2], YELLOW, 2);	//a-d
-				line(stream, corners[18], corners[0], YELLOW, 2);	//b-a
-				line(stream, corners[18], corners[20], YELLOW, 2);	//b-c
-				line(stream, point2D[6], point2D[5], YELLOW, 2);	//h-g
-				line(stream, point2D[4], point2D[3], YELLOW, 2);	//f-e
-				line(stream, point2D[3], point2D[5], YELLOW, 2);	//e-g
-				line(stream, point2D[4], point2D[6], YELLOW, 2);	//f-h
-				
-				// If red is further than blue, draw red first
-				if (ZBuffer[0] > ZBuffer[1]) {
-					//cout << "Drawing red, then blue\n";
-					circle(stream, ballimg[0], 20, RED, FILLED);
-					circle(stream, ballimg[1], 20, BLUE, FILLED);
-				}
-				// If red is not further than blue, draw blue first
-				else {
-					//cout << "Drawing blue, then red\n";
-					circle(stream, ballimg[1], 20, BLUE, FILLED);
-					circle(stream, ballimg[0], 20, RED, FILLED);
-				}
-				
-				
+			//-----------draw cube-----------////
+			//bottom square
+			line(stream, corners[18], corners[20], YELLOW, 2);
+			line(stream, corners[20], corners[2], YELLOW, 2);
+			line(stream, corners[0], corners[2], YELLOW, 2);
+			line(stream, corners[18], corners[0], YELLOW, 2);
+			//top square
+			line(stream, point2D[6], point2D[5], YELLOW, 2);
+			line(stream, point2D[4], point2D[3], YELLOW, 2);
+			line(stream, point2D[3], point2D[5], YELLOW, 2);
+			line(stream, point2D[4], point2D[6], YELLOW, 2);
+			//pillars
+			line(stream, corners[0], point2D[3], YELLOW, 2);
+			line(stream, corners[2], point2D[5], YELLOW, 2);
+			line(stream, corners[18], point2D[4], YELLOW, 2);
+			line(stream, corners[20], point2D[6], YELLOW, 2);
+
+			// If red is further than blue, draw red first
+			if (ZBuffer[0] > ZBuffer[1]) {
+				circle(stream, ballimg[0], 20, RED, FILLED);
+				circle(stream, ballimg[1], 20, BLUE, FILLED);
 			}
-			
-			imshow("Assignment1", stream);
-			waitKey(1);
+			// If red is not further than blue, draw blue first
+			else {
+				circle(stream, ballimg[1], 20, BLUE, FILLED);
+				circle(stream, ballimg[0], 20, RED, FILLED);
+			}
+
 		}
+
+		imshow("Assignment1", stream);
+		waitKey(1);
+	}
 
 }
 
@@ -504,28 +494,25 @@ int main(int argc, char* argv[])
 	Mat cameraMatrix, distCoeffs, rvecs, tvecs;
 	cameraMatrix = Mat::eye(3, 3, CV_64F);
 	distCoeffs = Mat::zeros(8, 1, CV_64F);
-
 	ImageReader img;
-
 	double rms = 0.0;
 	vector<Point2f> corners;
-
 	int no_squares = 0;
+
 	// Using images
-	
-	Calibrator calibrator = Calibrator{IMAGES_PATH};
-	
+	Calibrator calibrator = Calibrator{ IMAGES_PATH };
+
 	// Using a webcam
 	//Calibrator calibrator = Calibrator(0);
-	
+
 	calibrator.GatherData(no_squares, corners);
-	
+
 	cout << "Data gathered successfully. Maybe. Hopefully.\n";
 	cout << "number of images omited:" << no_squares << "\n";
-	calibrator.CalibrateCamera(rms, cameraMatrix,distCoeffs, rvecs, tvecs, no_squares, corners);
+	calibrator.CalibrateCamera(rms, cameraMatrix, distCoeffs, rvecs, tvecs, no_squares, corners);
 	Save_calibration(cameraMatrix, distCoeffs, rms, rvecs, tvecs);
 
-	//calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs); todo: ANA UNCOMMENT
+	//calibrator.ShowUndistortedImages(cameraMatrix, distCoeffs); 
 	draw_on_webcam(cameraMatrix, distCoeffs);
 
 	//Click to exit
